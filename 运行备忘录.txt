@@ -1,0 +1,3 @@
+1、打开命令提示符
+2、纯文本，输入命令：python d:\myvibecoding\broadcast\transcript_generator.py "您的播客链接" --output_format txt
+     只生成带时间戳的文本，输入命令：python d:\myvibecoding\broadcast\transcript_generator.py "您的播客链接" --output_format verbose_txt
