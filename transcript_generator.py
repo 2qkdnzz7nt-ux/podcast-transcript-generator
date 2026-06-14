@@ -8,30 +8,61 @@ import shutil
 import whisper
 
 def is_url(string):
-    """Checks if a string is a valid URL."""
-    regex = re.compile(
-        r'^(?:http|ftp)s?://'
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
-        r'localhost|'
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
-        r'(?::\d+)?'
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-    return re.match(regex, string) is not None
+    """Checks if a string contains a valid URL."""
+    return re.search(r'https?://\S+', string) is not None
 
-def download_audio_from_url(url, temp_dir):
-    """Downloads audio from a URL using yt-dlp and renames it to a safe name."""
-    print(f"Downloading audio from URL: {url}")
+def download_audio_from_url(url_string, temp_dir):
+    """Extracts a clean URL from the input string and downloads the audio."""
+    # Use a precise regex to extract the URL, ignoring surrounding quotes, spaces, or backticks.
+    url_match = re.search(r'(https?://[^ `]+)', url_string)
+    if not url_match:
+        print(f"Error: Could not find a valid URL in the input: {url_string}", file=sys.stderr)
+        return None
+    
+    clean_url = url_match.group(1)
+    print(f"Found and using clean URL: {clean_url}")
+
+    # 国内网站列表（这些网站通过代理反而可能失败）
+    domestic_domains = [
+        'bilibili.com', 'b23.tv',
+        'douyin.com', 'tiktok.com',
+        'ixigua.com', 'xigua.com',
+        'youku.com', 'iqiyi.com',
+        'acfun.cn', '163.com',
+    ]
+
+    # 判断是否是国内网站，如果是则不使用系统代理
+    use_noproxy = any(domain in clean_url for domain in domestic_domains)
+
     try:
         output_template = os.path.join(temp_dir, '%(title)s.%(ext)s')
         command = [
             'yt-dlp',
-            '-x',
-            '--audio-format', 'm4a',
+            '-x',  # Extract audio
             '-o', output_template,
-            '--quiet',
-            url
+            clean_url
         ]
-        subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8')
+
+        # 准备环境变量（需要清除代理以绕过 urllib 读取 Windows 系统代理）
+        env = os.environ.copy()
+        if use_noproxy:
+            print("Detected domestic site, bypassing system proxy...")
+            # 清除所有代理相关环境变量，使 yt-dlp 的 urllib/requests 直连
+            for key in list(env.keys()):
+                if 'proxy' in key.lower():
+                    del env[key]
+            env['no_proxy'] = '*'
+            env['NO_PROXY'] = '*'
+
+            # 添加浏览器 headers 防止国内网站返回 412/403
+            command.extend([
+                '--add-header', 'Accept-Language:zh-CN,zh;q=0.9,en;q=0.8',
+                '--add-header', 'Origin:https://www.bilibili.com',
+                '--add-header', 'Referer:https://www.bilibili.com/',
+                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            ])
+
+        result = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace', env=env)
 
         files = os.listdir(temp_dir)
         if not files:
@@ -39,13 +70,24 @@ def download_audio_from_url(url, temp_dir):
         
         downloaded_file_path = os.path.join(temp_dir, files[0])
         
-        # Rename to a safe, predictable name
-        safe_filepath = os.path.join(temp_dir, "downloaded_audio.m4a")
+        original_extension = os.path.splitext(downloaded_file_path)[1]
+        safe_filepath = os.path.join(temp_dir, f"downloaded_media{original_extension}")
         os.rename(downloaded_file_path, safe_filepath)
 
         print(f"Successfully downloaded and renamed to: {os.path.basename(safe_filepath)}")
         return safe_filepath
 
+    except subprocess.CalledProcessError as e:
+        print(f"Download failed (exit code {e.returncode}).", file=sys.stderr)
+        if e.stderr:
+            # 提取关键错误信息
+            error_lines = [line for line in e.stderr.split('\n') if 'ERROR:' in line or 'error' in line.lower()]
+            if error_lines:
+                print(f"Error details: {error_lines[-1].strip()}", file=sys.stderr)
+            else:
+                print(f"Stderr: {e.stderr[-300:]}", file=sys.stderr)
+        print(f"Tip: If downloading from bilibili/douyin etc., ensure you are not using a VPN/proxy, or try downloading the audio manually first.", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"An error occurred during download: {e}", file=sys.stderr)
         return None

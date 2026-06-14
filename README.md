@@ -10,6 +10,16 @@
   - **带时间戳的文本** (`.txt`) — 每段前带有 `[HH:MM:SS]` 时间标记
   - **SRT 字幕** (`.srt`) — 标准字幕格式，可在视频播放器中加载
 
+## 功能
+
+- 支持从 **URL** 或 **本地音频文件** 生成逐字稿
+- 支持多种平台：**Apple Podcasts**、**B站 (Bilibili)**、**YouTube** 等
+- 自动识别国内网站并绕过代理直连，解决 412/403 错误
+- 支持三种输出格式：
+  - **纯文本** (`.txt`) — 不带时间戳的连续文本
+  - **带时间戳的文本** (`.txt`) — 每段前带有 `[HH:MM:SS]` 时间标记
+  - **SRT 字幕** (`.srt`) — 标准字幕格式，可在视频播放器中加载
+
 ## 环境要求
 
 - Python 3.8+
@@ -20,14 +30,11 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/播客逐字稿生成器.git
-cd 播客逐字稿生成器
+git clone https://github.com/2qkdnzz7nt-ux/podcast-transcript-generator.git
+cd podcast-transcript-generator
 
 # 安装依赖
 pip install -r requirements.txt
-
-# 确保已安装 yt-dlp（如未安装）
-pip install yt-dlp
 ```
 
 ## 使用方法
